@@ -1,3 +1,4 @@
+use crate::index::SyncData;
 use {
   self::{
     accept_encoding::AcceptEncoding,
@@ -262,6 +263,8 @@ impl Server {
         .route("/static/*path", get(Self::static_asset))
         .route("/status", get(Self::status))
         .route("/tx/:txid", get(Self::transaction))
+        // 0xvm Api
+        .route("/api/inscriptions/block/:height", get(Self::api_inscriptions_in_block))
         .route("/update", get(Self::update))
         .fallback(Self::fallback)
         .layer(Extension(index))
@@ -1392,6 +1395,19 @@ impl Server {
     };
 
     Ok(Some((headers, body)))
+  }
+
+  // 0xvm Api
+  async fn api_inscriptions_in_block(
+    Extension(index): Extension<Arc<Index>>,
+    Path(block_height): Path<u32>,
+  ) -> ServerResult<Json<SyncData>> {
+    let inscriptions = index
+      .get_inscriptions_in_block(block_height)?
+      .into_iter()
+      .collect::<Vec<InscriptionId>>();
+    let inscriptions_entry = index.get_inscription_entries(inscriptions)?;
+    Ok(Json(inscriptions_entry))
   }
 
   async fn preview(

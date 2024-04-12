@@ -279,7 +279,7 @@ impl Entry for RuneId {
   }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub(crate) struct InscriptionEntry {
   pub(crate) charms: u16,
   pub(crate) fee: u64,

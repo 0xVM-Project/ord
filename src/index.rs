@@ -73,6 +73,12 @@ define_table! { TRANSACTION_ID_TO_RUNE, &TxidValue, u128 }
 define_table! { TRANSACTION_ID_TO_TRANSACTION, &TxidValue, &[u8] }
 define_table! { WRITE_TRANSACTION_STARTING_BLOCK_COUNT_TO_TIMESTAMP, u32, u128 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct ExtendedInscriptionEntry {
+  entry: InscriptionEntry,
+  content: String,
+}
+
 #[derive(Copy, Clone)]
 pub(crate) enum Statistic {
   Schema = 0,
@@ -178,6 +184,12 @@ impl<T> BitcoinCoreRpcResultExt<T> for Result<T, bitcoincore_rpc::Error> {
       Err(err) => Err(err.into()),
     }
   }
+}
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct SyncData {
+  pub(crate) block_count: u32,
+  pub(crate) inscriptions: Vec<ExtendedInscriptionEntry>,
 }
 
 pub struct Index {
@@ -1993,6 +2005,36 @@ impl Index {
       .map(|value| InscriptionEntry::load(value.value()));
 
     Ok(entry)
+  }
+
+  // 0xvm Api
+  pub(crate) fn get_inscription_entries(
+    &self,
+    inscriptions: Vec<InscriptionId>,
+  ) -> Result<SyncData> {
+    let rtx = self.begin_read()?;
+    let block_count = rtx.block_count()? - 1;
+    let mut entries = Vec::new();
+
+    for inscription_id in inscriptions {
+      match self.get_inscription_entry(inscription_id) {
+        Ok(Some(entry)) => {
+          let content = String::from_utf8(self.get_inscription_by_id(inscription_id)?.unwrap().into_body().unwrap_or_else(Vec::new)).unwrap_or_else(|_| String::new());
+          let entry_with_content = ExtendedInscriptionEntry{
+            entry,
+            content,
+          };
+          entries.push(entry_with_content)
+        },
+        Ok(None) => (), 
+        Err(e) => return Err(e),
+      }
+    }
+
+    Ok(SyncData { 
+      block_count,
+      inscriptions: entries 
+    })
   }
 
   #[cfg(test)]
